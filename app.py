@@ -1,13 +1,13 @@
 from flask import Flask, render_template, redirect, url_for, request, make_response, jsonify
 from flask_socketio import SocketIO
 import random
-import eventlet
+from gevent import monkey
 import uuid
 
-eventlet.monkey_patch()
+monkey.patch_all()
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 fecha_actual = "2025-06-26 15:00"
 pases_asignados = {}
