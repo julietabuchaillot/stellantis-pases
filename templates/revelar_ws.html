@@ -8,67 +8,82 @@
     #resultados { margin-top: 20px; }
     ul { list-style: none; padding: 0; }
     li { margin-bottom: 5px; }
+    button { margin-right: 10px; margin-top: 10px; padding: 10px 20px; font-size: 16px; }
   </style>
 </head>
 <body>
   <h1>🔍 Resultado en tiempo real</h1>
-  <button onclick="disparar()" style="padding: 10px 20px; font-size: 16px;">Revelar ahora</button>
+  <button onclick="disparar()">Revelar resultados</button>
+  <button onclick="mostrarNoIngresaron()">Mostrar no admitidos</button>
+  <button onclick="mostrarImpostores()">Mostrar impostores</button>
 
   <div id="resultados"></div>
 
   <script>
+    let todos = [];
+
     async function disparar(){
       const res = await fetch('/disparar_revelacion');
-      const text = await res.text();
-      alert(text);
+      alert(await res.text());
+      todos = await fetch('/obtener_pases').then(r => r.json());
 
-      const counts = {
-        aceptados: 0,
-        documentacion: 0,
-        curso: 0,
-        certificado: 0,
-        autorizacion: 0,
-        cita: 0,
-        impostor: 0
-      };
-
-      const data = await fetch('/pases').then(r => r.json());
-      data.forEach(p => {
-        if (p.es_impostor) {
-          counts.impostor++;
-        } else {
-          const cumpleTodo =
-            p.fecha === "2025-06-26 15:00" &&
-            p.documentacion &&
-            p.curso &&
-            p.certificado &&
-            p.autorizacion &&
-            p.cita;
-
-          if (cumpleTodo) {
-            counts.aceptados++;
-          } else {
-            if (!p.documentacion) counts.documentacion++;
-            if (!p.curso) counts.curso++;
-            if (!p.certificado) counts.certificado++;
-            if (!p.autorizacion) counts.autorizacion++;
-            if (!p.cita) counts.cita++;
-          }
-        }
-      });
+      const aceptados = todos.filter(p =>
+        !p.es_impostor &&
+        p.fecha === "2025-06-26 15:00" &&
+        p.documentacion && p.curso && p.certificado && p.autorizacion && p.cita
+      );
 
       document.getElementById("resultados").innerHTML = `
-        <h2>📊 Resultados</h2>
+        <h2>📊 Resultados generales</h2>
         <ul>
-          <li>✅ Aceptados: ${counts.aceptados}</li>
-          <li>🚨 Rechazados por ser impostores: ${counts.impostor}</li>
-          <li>❌ Sin documentación: ${counts.documentacion}</li>
-          <li>❌ Sin curso: ${counts.curso}</li>
-          <li>❌ Sin certificado: ${counts.certificado}</li>
-          <li>❌ Sin autorización: ${counts.autorizacion}</li>
-          <li>❌ Sin cita: ${counts.cita}</li>
-        </ul>
-      `;
+          <li>✅ Aceptados: ${aceptados.length}</li>
+          <li>🚨 Impostores: ${todos.filter(p => p.es_impostor).length}</li>
+          <li>❌ No admitidos: ${todos.length - aceptados.length - todos.filter(p => p.es_impostor).length}</li>
+        </ul>`;
+    }
+
+    function mostrarNoIngresaron(){
+      const noAdmitidos = todos.filter(p =>
+        !p.es_impostor && (
+          p.fecha !== "2025-06-26 15:00" ||
+          !p.documentacion || !p.curso || !p.certificado || !p.autorizacion || !p.cita
+        )
+      );
+
+      const clasificados = {
+        "documentación": [],
+        "curso": [],
+        "certificado": [],
+        "autorización": [],
+        "cita": []
+      };
+
+      noAdmitidos.forEach(p => {
+        const nombre = p.nombre || `ID ${p.id}`;
+        if (!p.documentacion) clasificados["documentación"].push(nombre);
+        if (!p.curso) clasificados["curso"].push(nombre);
+        if (!p.certificado) clasificados["certificado"].push(nombre);
+        if (!p.autorizacion) clasificados["autorización"].push(nombre);
+        if (!p.cita) clasificados["cita"].push(nombre);
+      });
+
+      let html = `<h2>❌ No pudieron ingresar</h2>`;
+      for (let motivo in clasificados) {
+        html += `<h3>Por falta de ${motivo}:</h3><ul>`;
+        clasificados[motivo].forEach(n => html += `<li>${n}</li>`);
+        html += `</ul>`;
+      }
+      document.getElementById("resultados").innerHTML = html;
+    }
+
+    function mostrarImpostores(){
+      const impostores = todos.filter(p => p.es_impostor);
+      let html = `<h2>🚨 Impostores</h2><ul>`;
+      impostores.forEach(p => {
+        html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
+      });
+      html += `</ul>`;
+      document.getElementById("resultados").innerHTML = html;
     }
   </script>
 </body>
