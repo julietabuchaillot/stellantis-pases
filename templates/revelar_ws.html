@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Revelar Resultado</title>
+  <style>
+    body { font-family: Helvetica, sans-serif; padding: 20px; }
+    #resultados { margin-top: 20px; }
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Resultado en tiempo real</h1>
+  <button onclick="disparar()" style="padding: 10px 20px; font-size: 16px;">Revelar ahora</button>
+
+  <div id="resultados"></div>
+
+  <script>
+    async function disparar(){
+      const res = await fetch('/disparar_revelacion');
+      const text = await res.text();
+      alert(text);
+
+      const counts = {
+        aceptados: 0,
+        documentacion: 0,
+        curso: 0,
+        certificado: 0,
+        autorizacion: 0,
+        cita: 0,
+        impostor: 0
+      };
+
+      const data = await fetch('/pases').then(r => r.json());
+      data.forEach(p => {
+        if (p.es_impostor) {
+          counts.impostor++;
+        } else {
+          const cumpleTodo =
+            p.fecha === "2025-06-26 15:00" &&
+            p.documentacion &&
+            p.curso &&
+            p.certificado &&
+            p.autorizacion &&
+            p.cita;
+
+          if (cumpleTodo) {
+            counts.aceptados++;
+          } else {
+            if (!p.documentacion) counts.documentacion++;
+            if (!p.curso) counts.curso++;
+            if (!p.certificado) counts.certificado++;
+            if (!p.autorizacion) counts.autorizacion++;
+            if (!p.cita) counts.cita++;
+          }
+        }
+      });
+
+      document.getElementById("resultados").innerHTML = `
+        <h2>📊 Resultados</h2>
+        <ul>
+          <li>✅ Aceptados: ${counts.aceptados}</li>
+          <li>🚨 Rechazados por ser impostores: ${counts.impostor}</li>
+          <li>❌ Sin documentación: ${counts.documentacion}</li>
+          <li>❌ Sin curso: ${counts.curso}</li>
+          <li>❌ Sin certificado: ${counts.certificado}</li>
+          <li>❌ Sin autorización: ${counts.autorizacion}</li>
+          <li>❌ Sin cita: ${counts.cita}</li>
+        </ul>
+      `;
+    }
+  </script>
+</body>
+</html>
