@@ -8,6 +8,8 @@
     .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
     li { margin: 5px 0; }
     #estado { margin-top: 15px; font-weight: bold; font-size: 1.2em; }
+    input[type="text"] { padding: 5px; width: 100%; margin-top: 10px; }
+    button { margin-top: 10px; padding: 8px 12px; font-size: 16px; }
   </style>
 </head>
 <body>
@@ -17,11 +19,21 @@
     <p><strong>Fecha autorizada:</strong> {{ pase.fecha }}</p>
     <ul>
       <li>📄 Documentación: {{ '✅' if pase.documentacion else '❌' }}</li>
-      <li>🧯 Curso de inducción: {{ '✅' if pase.curso else '❌' }}</li>
-      <li>🌱 Certif. Sustentabilidad: {{ '✅' if pase.certificado else '❌' }}</li>
-      <li>🔐 Autorización interna: {{ '✅' if pase.autorizacion else '❌' }}</li>
-      <li>📆 Cita previa: {{ '✅' if pase.cita else '❌' }}</li>
+      <li>🧯 Curso: {{ '✅' if pase.curso else '❌' }}</li>
+      <li>🌱 Certificado: {{ '✅' if pase.certificado else '❌' }}</li>
+      <li>🔐 Autorización: {{ '✅' if pase.autorizacion else '❌' }}</li>
+      <li>📆 Cita: {{ '✅' if pase.cita else '❌' }}</li>
     </ul>
+
+    <div id="nombre-block">
+      {% if pase.nombre %}
+        <p><strong>🙋 Nombre:</strong> {{ pase.nombre }}</p>
+      {% else %}
+        <input type="text" id="nombre" placeholder="Ingresá tu nombre y apellido">
+        <button onclick="guardarNombre()">Guardar nombre</button>
+      {% endif %}
+    </div>
+
     <div id="estado">⌛ Esperando la revelación...</div>
   </div>
 
@@ -29,20 +41,33 @@
   <script>
     const socket = io();
     socket.on('resultado', (data) => {
-      if(data.id === "{{ pase.id }}"){
+      if (data.id === "{{ pase.id }}") {
         const estadoDiv = document.getElementById('estado');
-        if(data.es_impostor){
+        if (data.es_impostor) {
           estadoDiv.textContent = "🚨 Sos un impostor. No podés ingresar.";
           estadoDiv.style.color = "red";
-        } else if(data.puede_ingresar){
+        } else if (data.puede_ingresar) {
           estadoDiv.textContent = "✅ Estás autorizado a ingresar.";
           estadoDiv.style.color = "green";
         } else {
-          estadoDiv.textContent = "❌ No cumplís los requisitos para ingresar.";
+          estadoDiv.textContent = "❌ No cumplís los requisitos.";
           estadoDiv.style.color = "orange";
         }
       }
     });
+
+    function guardarNombre() {
+      const nombre = document.getElementById("nombre").value;
+      fetch("/guardar_nombre", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `id={{ pase.id }}&nombre=${encodeURIComponent(nombre)}`
+      }).then(res => {
+        if (res.ok) {
+          document.getElementById("nombre-block").innerHTML = `<p><strong>🙋 Nombre:</strong> ${nombre}</p>`;
+        }
+      });
+    }
   </script>
 </body>
 </html>
