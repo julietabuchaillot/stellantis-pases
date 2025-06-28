@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Pase ID {{ pase.id }}</title>
+  <style>
+    body {
+      font-family: Helvetica, sans-serif;
+      background: #eef2f7;
+      padding: 20px;
+    }
+    .container {
+      max-width: 500px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin: auto;
+    }
+    .foto {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 50%;
+      margin-bottom: 15px;
+    }
+    .estado {
+      font-size: 1.2em;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+    li {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🎟️ Pase ID: {{ pase.id }}</h2>
+    <img src="/static/fotos/{{ pase.id }}.jpg" onerror="this.src='/static/foto_generica.png'" class="foto" alt="Foto">
+    <p><strong>🙋 Nombre:</strong> {{ pase.nombre or "No ingresado" }}</p>
+    <p><strong>Rol:</strong> {{ pase.rol }}</p>
+    <p><strong>Empresa:</strong> {{ pase.empresa }}</p>
+    <p><strong>Fecha:</strong> {{ pase.fecha }} {{ pase.hora }}</p>
+
+    <div class="estado">
+      {% if pase.es_impostor %}
+        🚨 Sos un impostor. No podés ingresar.
+      {% elif pase.documentacion and pase.curso and pase.certificado and pase.cita %}
+        ✅ Pase completo. Autorizado a ingresar.
+      {% else %}
+        ❌ Pase incompleto. No podés ingresar.
+      {% endif %}
+    </div>
+
+    <ul>
+      <li>📄 Documentación: {{ "✅" if pase.documentacion else "❌" }}</li>
+      <li>🧯 Inducción de seguridad: {{ "✅" if pase.curso else "❌" }}</li>
+      <li>🌱 Sustentabilidad: {{ "✅" if pase.certificado else "❌" }}</li>
+      <li>📆 Cita: {{ "✅" if pase.cita else "❌" }}</li>
+    </ul>
+
+    <h3>📊 Ingresos previos</h3>
+    <p>No disponible aún.</p>
+  </div>
+</body>
+</html>
