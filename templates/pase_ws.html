@@ -4,27 +4,106 @@
   <meta charset="UTF-8">
   <title>Pase Digital</title>
   <style>
-    body { font-family: Helvetica, sans-serif; background: #f0f4f8; padding: 20px; }
-    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-    li { margin: 5px 0; }
-    #estado { margin-top: 15px; font-weight: bold; font-size: 1.2em; }
-    input[type="text"] { padding: 5px; width: 100%; margin-top: 10px; }
-    button { margin-top: 10px; padding: 8px 12px; font-size: 16px; }
+    body {
+      font-family: Helvetica, sans-serif;
+      background: #f0f4f8;
+      padding: 20px;
+      margin: 0;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: auto;
+    }
+    li {
+      margin: 5px 0;
+    }
+    #estado {
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+    input[type="text"] {
+      padding: 5px;
+      width: 100%;
+      margin-top: 10px;
+    }
+    button {
+      margin-top: 10px;
+      padding: 8px 12px;
+      font-size: 16px;
+    }
+    .carnet {
+      background: white;
+      padding: 16px;
+      margin-top: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+    }
+    .carnet img.logo {
+      width: 100%;
+      max-height: 36px;
+      object-fit: contain;
+      display: block;
+      margin-bottom: 10px;
+    }
+    .carnet .contenido {
+      display: flex;
+      flex-direction: row;
+      gap: 12px;
+      align-items: center;
+    }
+    .carnet .foto {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .carnet .datos {
+      flex: 1;
+      font-size: 14px;
+    }
+    .carnet .datos p {
+      margin: 4px 0;
+    }
+    .carnet .barra {
+      font-family: monospace;
+      text-align: center;
+      font-size: 28px;
+      letter-spacing: 3px;
+      margin-top: 12px;
+    }
+.codigo-barra {
+  display: block;
+  margin: 20px auto 0;
+  max-width: 300px;
+}
+
+    @media (max-width: 420px) {
+      .carnet .contenido {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+      .carnet .datos {
+        text-align: center;
+      }
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 </head>
 <body>
   <div class="card">
     <h2>🎟️ Pase ID: {{ pase.id }}</h2>
-    <p><strong>Rol:</strong> {{ pase.rol }}</p>
-    <p><strong>Fecha autorizada:</strong> {{ pase.fecha }}</p>
-    <ul>
-      <li>📄 Documentación: {{ '✅' if pase.documentacion else '❌' }}</li>
-      <li>🧯 Curso: {{ '✅' if pase.curso else '❌' }}</li>
-      <li>🌱 Certificado: {{ '✅' if pase.certificado else '❌' }}</li>
-      <li>🔐 Autorización: {{ '✅' if pase.autorizacion else '❌' }}</li>
-      <li>📆 Cita: {{ '✅' if pase.cita else '❌' }}</li>
-    </ul>
-
     <div id="nombre-block">
       {% if pase.nombre %}
         <p><strong>🙋 Nombre:</strong> {{ pase.nombre }}</p>
@@ -34,24 +113,90 @@
       {% endif %}
     </div>
 
+    <p><strong>Rol:</strong> {{ pase.rol }}</p>
+    <p><strong>Empresa:</strong> {{ pase.empresa }}</p>
+    <p><strong>Fecha autorizada:</strong> {{ pase.fecha }} {{ pase.hora }}</p>
+
+    <ul id="requisitos-siempre">
+      {% if pase.documentacion %}<li>📄 Documentación validada: ✅</li>{% endif %}
+      {% if pase.curso %}<li>🧯 Inducción de seguridad: ✅</li>{% endif %}
+      {% if pase.certificado %}<li>🌱 Acreditación sustentabilidad: ✅</li>{% endif %}
+      {% if pase.cita %}<li>📆 Cita: ✅</li>{% endif %}
+    </ul>
+
+    <ul id="requisitos-faltantes" style="display:none; margin-top: 10px; color: orange;">
+      {% if not pase.documentacion %}<li>📄 Documentación validada: ❌</li>{% endif %}
+      {% if not pase.curso %}<li>🧯 Inducción de seguridad: ❌</li>{% endif %}
+      {% if not pase.certificado %}<li>🌱 Acreditación sustentabilidad: ❌</li>{% endif %}
+      {% if not pase.cita %}<li>📆 Cita: ❌</li>{% endif %}
+    </ul>
+
+    <li id="foto-check">📷 Foto para reconocimiento facial: ❌
+      <input type="file" accept="image/*" capture="environment" id="foto" style="display:none;" onchange="subirFoto()">
+      <button type="button" id="btn-foto" onclick="document.getElementById('foto').click()">📸 Subir foto</button>
+    </li>
+
     <div id="estado">⌛ Esperando la revelación...</div>
+    <div id="carnet" style="display:none;"></div>
+    <button id="descargar-btn" style="display:none; margin: 10px auto;" onclick="descargarCarnet()">📥 Descargar carnet como imagen</button>
   </div>
 
   <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
     const socket = io();
+
     socket.on('resultado', (data) => {
       if (data.id === "{{ pase.id }}") {
         const estadoDiv = document.getElementById('estado');
+        const faltantesUl = document.getElementById('requisitos-faltantes');
+
         if (data.es_impostor) {
           estadoDiv.textContent = "🚨 Sos un impostor. No podés ingresar.";
           estadoDiv.style.color = "red";
+          faltantesUl.style.display = "none";
         } else if (data.puede_ingresar) {
-          estadoDiv.textContent = "✅ Estás autorizado a ingresar.";
+          let mensaje = "✅ Estás autorizado a ingresar.";
+          if (data.estado_ingreso === "adelantado") mensaje += " (Ingreso adelantado)";
+          else if (data.estado_ingreso === "retrasado") mensaje += " (Ingreso retrasado)";
+          else if (data.estado_ingreso === "puntual") mensaje += " (Ingreso puntual)";
+          estadoDiv.textContent = mensaje;
           estadoDiv.style.color = "green";
+
+          const carnet = `
+            <div class="carnet">
+              <img src="/static/logo_stellantis.png" class="logo" alt="Stellantis">
+              <div class="contenido">
+                <img src="/static/fotos/${data.id}.jpg" onerror="this.src='/static/foto_generica.png'" class="foto" alt="Foto">
+                <div class="datos">
+                  <p><strong>${data.nombre || "Visitante"}</strong></p>
+                  <p>ID: ${data.id}</p>
+                  <p>Empresa: ${data.empresa}</p>
+                  <p>Rol: ${data.rol}</p>
+                  <p>Fecha: ${data.fecha}</p>
+                  <p>Hora: ${data.hora}</p>
+                </div>
+              </div>
+              <svg id="barcode" class="codigo-barra"></svg>
+            </div>`;
+          document.getElementById("carnet").innerHTML = carnet;
+          document.getElementById("carnet").style.display = "block";
+          document.getElementById("descargar-btn").style.display = "block";
+
+          JsBarcode("#barcode", "https://stellantis-pases.onrender.com/pase/" + data.id, {
+  format: "CODE128",
+  lineColor: "#000",
+  width: 2,
+  height: 60,
+  displayValue: false
+});
+
+
+          faltantesUl.style.display = "block";
         } else {
-          estadoDiv.textContent = "❌ No cumplís los requisitos.";
+          estadoDiv.textContent = "❌ No cumplís los requisitos. No podés ingresar.";
           estadoDiv.style.color = "orange";
+          faltantesUl.style.display = "block";
         }
       }
     });
@@ -68,6 +213,37 @@
         }
       });
     }
+
+    function subirFoto() {
+      const fileInput = document.getElementById("foto");
+      const formData = new FormData();
+      formData.append("id", "{{ pase.id }}");
+      formData.append("foto", fileInput.files[0]);
+
+      fetch("/guardar_foto", { method: "POST", body: formData }).then(res => {
+        if (res.ok) {
+          document.getElementById("foto-check").innerHTML = "📷 Foto para reconocimiento facial: ✅";
+        }
+      });
+    }
+
+    function descargarCarnet() {
+      const carnet = document.querySelector('.carnet');
+      html2canvas(carnet).then(canvas => {
+        const enlace = document.createElement('a');
+        enlace.href = canvas.toDataURL("image/png");
+        enlace.download = 'carnet_{{ pase.id }}.png';
+        enlace.click();
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      fetch(`/static/fotos/{{ pase.id }}.jpg`, { method: 'HEAD' }).then(res => {
+        if (res.ok) {
+          document.getElementById("foto-check").innerHTML = "📷 Foto para reconocimiento facial: ✅";
+        }
+      });
+    });
   </script>
 </body>
 </html>
