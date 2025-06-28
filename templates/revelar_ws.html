@@ -4,86 +4,249 @@
   <meta charset="UTF-8">
   <title>Revelar Resultado</title>
   <style>
-    body { font-family: Helvetica, sans-serif; padding: 20px; }
-    #resultados { margin-top: 20px; }
-    ul { list-style: none; padding: 0; }
-    li { margin-bottom: 5px; }
-    button { margin-right: 10px; margin-top: 10px; padding: 10px 20px; font-size: 16px; }
+    body {
+      font-family: Helvetica, sans-serif;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+
+    h1, h2 {
+      margin-bottom: 10px;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .card {
+      flex: 1 1 250px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.08);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .valor {
+      font-size: 2.5em;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+
+    .subgrid {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 15px;
+      gap: 10px;
+    }
+
+    .subcard {
+      background: #eef3f7;
+      border-radius: 8px;
+      padding: 10px;
+      flex: 1;
+    }
+
+    .subcard h4 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .subvalor {
+      font-size: 1.5em;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+      background: #005baa;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #003f7a;
+    }
+
+    #resultados-secundarios {
+      margin-top: 30px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      margin-bottom: 5px;
+    }
   </style>
 </head>
 <body>
   <h1>🔍 Resultado en tiempo real</h1>
   <button onclick="disparar()">Revelar resultados</button>
-  <button onclick="mostrarNoIngresaron()">Mostrar no admitidos</button>
-  <button onclick="mostrarImpostores()">Mostrar impostores</button>
 
   <div id="resultados"></div>
+  <div id="resultados-secundarios"></div>
 
   <script>
     let todos = [];
+    let mostrando = "";
+    let admitidosGlobal = [];
 
-    async function disparar(){
+    async function disparar() {
       const res = await fetch('/disparar_revelacion');
       alert(await res.text());
       todos = await fetch('/obtener_pases').then(r => r.json());
 
-      const aceptados = todos.filter(p =>
-        !p.es_impostor &&
-        p.fecha === "2025-06-26 15:00" &&
-        p.documentacion && p.curso && p.certificado && p.autorizacion && p.cita
-      );
+      const ahora = new Date();
+      const hoy = ahora.toISOString().split('T')[0];
+
+      const admitidos = todos.filter(p => {
+        if (p.es_impostor) return false;
+        if (!(p.documentacion && p.curso && p.certificado && p.cita)) return false;
+        if (!p.fecha || p.fecha === "Sin cita") return false;
+        return p.fecha === hoy;
+      });
+
+      admitidosGlobal = admitidos;
+
+      admitidos.forEach(p => {
+        const hora = p.hora || "00:00";
+        const cita = new Date(`${p.fecha}T${hora}:00`);
+        const diferenciaMin = (ahora - cita) / 60000;
+        if (diferenciaMin < -10) {
+          p.estado_horario = "adelantado";
+        } else if (diferenciaMin > 10) {
+          p.estado_horario = "demorado";
+        } else {
+          p.estado_horario = "a tiempo";
+        }
+      });
+
+      const impostores = todos.filter(p => p.es_impostor);
+      const noAdmitidos = todos.length - admitidos.length - impostores.length;
+
+      const adelantados = admitidos.filter(p => p.estado_horario === "adelantado").length;
+      const demorados = admitidos.filter(p => p.estado_horario === "demorado").length;
+      const a_tiempo = admitidos.filter(p => p.estado_horario === "a tiempo").length;
 
       document.getElementById("resultados").innerHTML = `
         <h2>📊 Resultados generales</h2>
-        <ul>
-          <li>✅ Aceptados: ${aceptados.length}</li>
-          <li>🚨 Impostores: ${todos.filter(p => p.es_impostor).length}</li>
-          <li>❌ No admitidos: ${todos.length - aceptados.length - todos.filter(p => p.es_impostor).length}</li>
-        </ul>`;
+        <div class="grid">
+          <div class="card admitidos">
+            <h3>✅ Admitidos</h3>
+            <div class="valor">${admitidos.length}</div>
+            <div class="subgrid">
+              <div class="subcard atiempo">
+                <h4>⏱️ A tiempo</h4>
+                <div class="subvalor">${a_tiempo}</div>
+              </div>
+              <div class="subcard adelantados">
+                <h4>⌛ Adelantados</h4>
+                <div class="subvalor">${adelantados}</div>
+              </div>
+              <div class="subcard demorados">
+                <h4>🕒 Demorados</h4>
+                <div class="subvalor">${demorados}</div>
+              </div>
+            </div>
+            <button onclick="toggleMostrar('admitidos')">Mostrar admitidos</button>
+          </div>
+          <div class="card impostores">
+            <h3>🚨 Impostores</h3>
+            <div class="valor">${impostores.length}</div>
+            <button onclick="toggleMostrar('impostores')">Mostrar impostores</button>
+          </div>
+          <div class="card noAdmitidos">
+            <h3>❌ No admitidos</h3>
+            <div class="valor">${noAdmitidos}</div>
+            <button onclick="toggleMostrar('no_admitidos')">Mostrar no admitidos</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("resultados-secundarios").innerHTML = "";
     }
 
-    function mostrarNoIngresaron(){
-      const noAdmitidos = todos.filter(p =>
-        !p.es_impostor && (
-          p.fecha !== "2025-06-26 15:00" ||
-          !p.documentacion || !p.curso || !p.certificado || !p.autorizacion || !p.cita
-        )
-      );
-
-      const clasificados = {
-        "documentación": [],
-        "curso": [],
-        "certificado": [],
-        "autorización": [],
-        "cita": []
-      };
-
-      noAdmitidos.forEach(p => {
-        const nombre = p.nombre || `ID ${p.id}`;
-        if (!p.documentacion) clasificados["documentación"].push(nombre);
-        if (!p.curso) clasificados["curso"].push(nombre);
-        if (!p.certificado) clasificados["certificado"].push(nombre);
-        if (!p.autorizacion) clasificados["autorización"].push(nombre);
-        if (!p.cita) clasificados["cita"].push(nombre);
-      });
-
-      let html = `<h2>❌ No pudieron ingresar</h2>`;
-      for (let motivo in clasificados) {
-        html += `<h3>Por falta de ${motivo}:</h3><ul>`;
-        clasificados[motivo].forEach(n => html += `<li>${n}</li>`);
-        html += `</ul>`;
+    function toggleMostrar(tipo) {
+      const contenedor = document.getElementById("resultados-secundarios");
+      if (mostrando === tipo) {
+        contenedor.innerHTML = "";
+        mostrando = "";
+        return;
       }
-      document.getElementById("resultados").innerHTML = html;
+
+      if (tipo === "impostores") mostrarImpostores(contenedor);
+      else if (tipo === "no_admitidos") mostrarNoIngresaron(contenedor);
+      else if (tipo === "admitidos") mostrarAdmitidos(contenedor);
+
+      mostrando = tipo;
     }
 
-    function mostrarImpostores(){
+    function mostrarImpostores(destino) {
       const impostores = todos.filter(p => p.es_impostor);
       let html = `<h2>🚨 Impostores</h2><ul>`;
       impostores.forEach(p => {
         html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
       });
       html += `</ul>`;
-      document.getElementById("resultados").innerHTML = html;
+      destino.innerHTML = html;
+    }
+
+    function mostrarNoIngresaron(destino) {
+  const hoy = new Date().toISOString().split('T')[0];
+
+  const noAdmitidos = todos.filter(p =>
+    !p.es_impostor && (
+      !p.documentacion || !p.curso || !p.certificado || p.fecha !== hoy
+    )
+  );
+
+  const clasificados = {
+    "documentación": [],
+    "curso": [],
+    "certificado": [],
+    "cita en otro día": []
+  };
+
+  noAdmitidos.forEach(p => {
+    const nombre = p.nombre || `ID ${p.id}`;
+    if (!p.documentacion) clasificados["documentación"].push(nombre);
+    if (!p.curso) clasificados["curso"].push(nombre);
+    if (!p.certificado) clasificados["certificado"].push(nombre);
+    if (p.fecha !== hoy) clasificados["cita en otro día"].push(nombre);
+  });
+
+  let html = `<h2>❌ No pudieron ingresar</h2>`;
+  for (let motivo in clasificados) {
+    html += `<h3>Por ${motivo}:</h3><ul>`;
+    clasificados[motivo].forEach(n => html += `<li>${n}</li>`);
+    html += `</ul>`;
+  }
+
+  destino.innerHTML = html;
+}
+
+
+    function mostrarAdmitidos(destino) {
+      let html = `<h2>✅ Admitidos</h2><ul>`;
+      admitidosGlobal.forEach(p => {
+        html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
+      });
+      html += `</ul>`;
+      destino.innerHTML = html;
     }
   </script>
 </body>
