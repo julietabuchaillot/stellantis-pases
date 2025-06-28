@@ -3,38 +3,64 @@ from flask_socketio import SocketIO
 import random
 from gevent import monkey
 import uuid
+from datetime import datetime, timedelta
+import os
 
 monkey.patch_all()
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
-fecha_actual = "2025-06-26 15:00"
+fecha_actual = datetime.now().strftime("%Y-%m-%d")
+hora_actual = datetime.now().replace(second=0, microsecond=0)
 pases_asignados = {}
 id_por_cookie = {}
 ultimo_id_asignado = 1
+
+empresas = [
+    "Motores Córdoba SA", "Autopartes Cuenca", "Chasis del Sur",
+    "Electroservicios Córdoba", "Transporte Argentino",
+    "Stellantis Argentina", "Stellantis Chile", "Stellantis Uruguay"
+]
+sub_roles_gerente = ["Gerente de Planta", "Gerente de Ventas", "Gerente de Compras", "Gerente de Seguridad"]
+plantas_gerente = ["Stellantis Chile", "Stellantis Uruguay", "Stellantis Brasil"]
 
 def generar_pase(id_numerico):
     r = random.random()
     if r < 0.05:
         return {'id': str(id_numerico), 'rol': 'Visita', 'fecha': fecha_actual,
+                'hora': hora_actual.strftime("%H:%M"), 'empresa': '',
                 'documentacion': True, 'curso': True, 'certificado': True,
-                'autorizacion': True, 'cita': True, 'es_impostor': False, 'nombre': ''}
+                 'cita': True, 'es_impostor': False, 'nombre': ''}
     elif r < 0.10:
         return {'id': str(id_numerico), 'rol': 'Desconocido', 'fecha': "Sin cita",
+                'hora': "--:--", 'empresa': '',
                 'documentacion': False, 'curso': False, 'certificado': False,
-                'autorizacion': False, 'cita': False, 'es_impostor': True, 'nombre': ''}
+                'cita': False, 'es_impostor': True, 'nombre': ''}
     else:
-        roles = ['Visita','Proveedor','Gerente','Inspector','Auditor']
-        return {'id': str(id_numerico),'rol': random.choice(roles),
-                'fecha': random.choice([fecha_actual, "2025-06-27 10:00"]),
-                'documentacion': random.choice([True,False]),
-                'curso': random.choice([True,False]),
-                'certificado': random.choice([True,False]),
-                'autorizacion': random.choice([True,False]),
-                'cita': random.choice([True,False]),
-                'es_impostor': False,
-                'nombre': ''}
+        roles = ['Visita', 'Proveedor', 'Gerente', 'Inspector', 'Auditor']
+        rol = random.choice(roles)
+        hora_cita = (hora_actual + timedelta(minutes=random.randint(-60, 120))).strftime("%H:%M")
+
+        if rol == "Gerente":
+            rol = random.choice(sub_roles_gerente)
+            empresa = random.choice(plantas_gerente)
+        elif rol == "Proveedor":
+            empresa = random.choice(["Motores Córdoba SA", "Autopartes Cuenca", "Chasis del Sur"])
+        elif rol in ["Inspector", "Auditor"]:
+            empresa = random.choice(["Ministerio de Trabajo", "Sindicato Nacional", "ISO Control"])
+        elif rol == "Visita":
+            empresa = ""
+        else:
+            empresa = random.choice(empresas)
+
+        return {'id': str(id_numerico), 'rol': rol,
+                'fecha': fecha_actual, 'hora': hora_cita, 'empresa': empresa,
+                'documentacion': random.choice([True, False]),
+                'curso': random.choice([True, False]),
+                'certificado': random.choice([True, False]),
+                'cita': True if fecha_actual and hora_cita else False,
+                'es_impostor': False, 'nombre': ''}
 
 @app.route("/scan")
 def scan():
@@ -70,21 +96,49 @@ def guardar_nombre():
         return "Nombre guardado", 200
     return "Pase no encontrado", 404
 
+@app.route("/guardar_foto", methods=["POST"])
+def guardar_foto():
+    id = request.form.get("id")
+    foto = request.files.get("foto")
+    if id and foto:
+        ruta = os.path.join("static", "fotos")
+        os.makedirs(ruta, exist_ok=True)
+        foto.save(os.path.join(ruta, f"{id}.jpg"))
+        return "Foto guardada", 200
+    return "Error al guardar la foto", 400
+
 @app.route("/revelar")
 def revelar():
     return render_template("revelar_ws.html")
 
 @app.route("/disparar_revelacion")
 def disparar_revelacion():
+    ahora = datetime.now()
     for pase in pases_asignados.values():
         puede_ingresar = (not pase['es_impostor'] and pase['fecha'] == fecha_actual and
-                          all([pase['documentacion'],pase['curso'],pase['certificado'],
-                               pase['autorizacion'],pase['cita']]))
+                          all([pase['documentacion'],pase['curso'],pase['certificado'],pase['cita']]))
+        estado_ingreso = "desconocido"
+        try:
+            cita_dt = datetime.strptime(pase['fecha'] + " " + pase['hora'], "%Y-%m-%d %H:%M")
+            if cita_dt > ahora:
+                estado_ingreso = "adelantado"
+            elif cita_dt < ahora:
+                estado_ingreso = "retrasado"
+            else:
+                estado_ingreso = "puntual"
+        except Exception:
+            estado_ingreso = "sin cita"
+
         socketio.emit('resultado', {
             'id': pase['id'],
             'puede_ingresar': puede_ingresar,
             'es_impostor': pase['es_impostor'],
-            'nombre': pase['nombre']
+            'nombre': pase['nombre'],
+            'empresa': pase['empresa'],
+            'rol': pase['rol'],
+            'hora': pase['hora'],
+            'fecha': pase['fecha'],
+            'estado_ingreso': estado_ingreso
         })
     return "Revelación enviada", 200
 
@@ -99,6 +153,14 @@ def reiniciar():
     id_por_cookie = {}
     ultimo_id_asignado = 1
     return "Juego reiniciado."
+
+@app.route("/pase/<id>")
+def ver_pase_publico(id):
+    pase = pases_asignados.get(id)
+    if not pase:
+        return "Pase no encontrado", 404
+    return render_template("ver_pase.html", pase=pase)
+
 
 @socketio.on("connect")
 def handle_connect():
