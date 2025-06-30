@@ -5,6 +5,7 @@ from gevent import monkey
 import uuid
 from datetime import datetime, timedelta
 import os
+import json
 
 monkey.patch_all()
 
@@ -16,6 +17,24 @@ hora_actual = datetime.now().replace(second=0, microsecond=0)
 pases_asignados = {}
 id_por_cookie = {}
 ultimo_id_asignado = 1
+ARCHIVO_JSON = "pases.json"
+
+def guardar_en_json():
+    with open(ARCHIVO_JSON, "w") as f:
+        json.dump({
+            "pases": pases_asignados,
+            "ultimo_id": ultimo_id_asignado,
+            "cookies": id_por_cookie
+        }, f, indent=2)
+
+def cargar_desde_json():
+    global pases_asignados, ultimo_id_asignado, id_por_cookie
+    if os.path.exists(ARCHIVO_JSON):
+        with open(ARCHIVO_JSON) as f:
+            datos = json.load(f)
+            pases_asignados = {k: v for k, v in datos.get("pases", {}).items()}
+            ultimo_id_asignado = datos.get("ultimo_id", 1)
+            id_por_cookie = datos.get("cookies", {})
 
 empresas = [
     "Motores Córdoba SA", "Autopartes Cuenca", "Chasis del Sur",
@@ -76,6 +95,7 @@ def scan():
     user_id = str(uuid.uuid4())
     id_por_cookie[user_id] = pase['id']
     ultimo_id_asignado += 1
+    guardar_en_json()
     resp = make_response(redirect(f"/scan/{pase['id']}"))
     resp.set_cookie("user_id", user_id)
     return resp
@@ -93,6 +113,7 @@ def guardar_nombre():
     nombre = request.form.get("nombre")
     if id in pases_asignados:
         pases_asignados[id]['nombre'] = nombre
+        guardar_en_json()
         return "Nombre guardado", 200
     return "Pase no encontrado", 404
 
@@ -152,7 +173,19 @@ def reiniciar():
     pases_asignados = {}
     id_por_cookie = {}
     ultimo_id_asignado = 1
+    if os.path.exists(ARCHIVO_JSON):
+        os.remove(ARCHIVO_JSON)
+
+    # Eliminar fotos en static/fotos
+    carpeta_fotos = os.path.join("static", "fotos")
+    if os.path.exists(carpeta_fotos):
+        for nombre_archivo in os.listdir(carpeta_fotos):
+            ruta_archivo = os.path.join(carpeta_fotos, nombre_archivo)
+            if os.path.isfile(ruta_archivo):
+                os.remove(ruta_archivo)
+
     return "Juego reiniciado."
+
 
 @app.route("/pase/<id>")
 def ver_pase_publico(id):
@@ -161,10 +194,10 @@ def ver_pase_publico(id):
         return "Pase no encontrado", 404
     return render_template("ver_pase.html", pase=pase)
 
-
 @socketio.on("connect")
 def handle_connect():
     print("Cliente conectado.")
 
 if __name__ == "__main__":
+    cargar_desde_json()
     socketio.run(app, host="0.0.0.0", port=3000)
