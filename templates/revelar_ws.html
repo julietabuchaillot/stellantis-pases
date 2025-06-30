@@ -97,6 +97,7 @@
 <body>
   <h1>🔍 Resultado en tiempo real</h1>
   <button onclick="disparar()">Revelar resultados</button>
+  <button onclick="reiniciar()">Reiniciar juego</button>
 
   <div id="resultados"></div>
   <div id="resultados-secundarios"></div>
@@ -248,6 +249,14 @@
       html += `</ul>`;
       destino.innerHTML = html;
     }
+
+    async function reiniciar() {
+  if (confirm("¿Estás seguro de reiniciar el juego?")) {
+    await fetch("/reiniciar");
+    location.reload();
+  }
+}
+
   </script>
 </body>
 </html>
