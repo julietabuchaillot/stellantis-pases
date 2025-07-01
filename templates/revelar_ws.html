@@ -92,6 +92,15 @@
     li {
       margin-bottom: 5px;
     }
+
+  #mensaje-reinicio {
+  display: none; /* inicialmente oculto */
+  text-align: center;
+  margin-top: 40px;
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #005baa;
+}
   </style>
 </head>
 <body>
@@ -102,161 +111,164 @@
   <div id="resultados"></div>
   <div id="resultados-secundarios"></div>
 
+  <div id="mensaje-reinicio">
+    <h1>✅ ¡Todo listo! Empezá a escanear</h1>
+     <img src="/static/qr_stellantis_scan.png" alt="QR Stellantis" style="margin-top: 20px; max-width: 300px; width: 100%; height: auto;">
+  </div>
+
   <script>
-    let todos = [];
-    let mostrando = "";
-    let admitidosGlobal = [];
+  let todos = [];
+  let mostrando = "";
+  let admitidosGlobal = [];
 
-    async function disparar() {
-      const res = await fetch('/disparar_revelacion');
-      alert(await res.text());
-      todos = await fetch('/obtener_pases').then(r => r.json());
+  async function disparar() {
 
-      const ahora = new Date();
-      const hoy = ahora.toISOString().split('T')[0];
+    const res = await fetch('/disparar_revelacion');
+    alert(await res.text());
+    document.getElementById("mensaje-reinicio").style.display = "none";
 
-      const admitidos = todos.filter(p => {
-        if (p.es_impostor) return false;
-        if (!(p.documentacion && p.curso && p.certificado && p.cita)) return false;
-        if (!p.fecha || p.fecha === "Sin cita") return false;
-        return p.fecha === hoy;
-      });
+    todos = await fetch('/obtener_pases').then(r => r.json());
 
-      admitidosGlobal = admitidos;
+    const ahora = new Date();
 
-      admitidos.forEach(p => {
-        const hora = p.hora || "00:00";
-        const cita = new Date(`${p.fecha}T${hora}:00`);
-        const diferenciaMin = (ahora - cita) / 60000;
-        if (diferenciaMin < -10) {
-          p.estado_horario = "adelantado";
-        } else if (diferenciaMin > 10) {
-          p.estado_horario = "demorado";
-        } else {
-          p.estado_horario = "a tiempo";
-        }
-      });
+    const admitidos = todos.filter(p => {
+      if (p.es_impostor) return false;
+      if (!(p.documentacion && p.curso && p.certificado && p.cita)) return false;
+      return true; // ✅ ya no se filtra por fecha
+    });
 
-      const impostores = todos.filter(p => p.es_impostor);
-      const noAdmitidos = todos.length - admitidos.length - impostores.length;
+    admitidosGlobal = admitidos;
 
-      const adelantados = admitidos.filter(p => p.estado_horario === "adelantado").length;
-      const demorados = admitidos.filter(p => p.estado_horario === "demorado").length;
-      const a_tiempo = admitidos.filter(p => p.estado_horario === "a tiempo").length;
-
-      document.getElementById("resultados").innerHTML = `
-        <h2>📊 Resultados generales</h2>
-        <div class="grid">
-          <div class="card admitidos">
-            <h3>✅ Admitidos</h3>
-            <div class="valor">${admitidos.length}</div>
-            <div class="subgrid">
-              <div class="subcard atiempo">
-                <h4>⏱️ A tiempo</h4>
-                <div class="subvalor">${a_tiempo}</div>
-              </div>
-              <div class="subcard adelantados">
-                <h4>⌛ Adelantados</h4>
-                <div class="subvalor">${adelantados}</div>
-              </div>
-              <div class="subcard demorados">
-                <h4>🕒 Demorados</h4>
-                <div class="subvalor">${demorados}</div>
-              </div>
-            </div>
-            <button onclick="toggleMostrar('admitidos')">Mostrar admitidos</button>
-          </div>
-          <div class="card impostores">
-            <h3>🚨 Impostores</h3>
-            <div class="valor">${impostores.length}</div>
-            <button onclick="toggleMostrar('impostores')">Mostrar impostores</button>
-          </div>
-          <div class="card noAdmitidos">
-            <h3>❌ No admitidos</h3>
-            <div class="valor">${noAdmitidos}</div>
-            <button onclick="toggleMostrar('no_admitidos')">Mostrar no admitidos</button>
-          </div>
-        </div>
-      `;
-      document.getElementById("resultados-secundarios").innerHTML = "";
-    }
-
-    function toggleMostrar(tipo) {
-      const contenedor = document.getElementById("resultados-secundarios");
-      if (mostrando === tipo) {
-        contenedor.innerHTML = "";
-        mostrando = "";
-        return;
+    admitidos.forEach(p => {
+      const hora = p.hora || "00:00";
+      const cita = new Date(`${p.fecha}T${hora}:00`);
+      const diferenciaMin = (ahora - cita) / 60000;
+      if (diferenciaMin < -10) {
+        p.estado_horario = "adelantado";
+      } else if (diferenciaMin > 10) {
+        p.estado_horario = "demorado";
+      } else {
+        p.estado_horario = "a tiempo";
       }
+    });
 
-      if (tipo === "impostores") mostrarImpostores(contenedor);
-      else if (tipo === "no_admitidos") mostrarNoIngresaron(contenedor);
-      else if (tipo === "admitidos") mostrarAdmitidos(contenedor);
+    const impostores = todos.filter(p => p.es_impostor);
+    const noAdmitidos = todos.length - admitidos.length - impostores.length;
 
-      mostrando = tipo;
+    const adelantados = admitidos.filter(p => p.estado_horario === "adelantado").length;
+    const demorados = admitidos.filter(p => p.estado_horario === "demorado").length;
+    const a_tiempo = admitidos.filter(p => p.estado_horario === "a tiempo").length;
+
+    document.getElementById("resultados").innerHTML = `
+      <h2>📊 Resultados generales</h2>
+      <div class="grid">
+        <div class="card admitidos">
+          <h3>✅ Admitidos</h3>
+          <div class="valor">${admitidos.length}</div>
+          <div class="subgrid">
+            <div class="subcard atiempo">
+              <h4>⏱️ A tiempo</h4>
+              <div class="subvalor">${a_tiempo}</div>
+            </div>
+            <div class="subcard adelantados">
+              <h4>⌛ Adelantados</h4>
+              <div class="subvalor">${adelantados}</div>
+            </div>
+            <div class="subcard demorados">
+              <h4>🕒 Demorados</h4>
+              <div class="subvalor">${demorados}</div>
+            </div>
+          </div>
+          <button onclick="toggleMostrar('admitidos')">Mostrar admitidos</button>
+        </div>
+        <div class="card impostores">
+          <h3>🚨 Impostores</h3>
+          <div class="valor">${impostores.length}</div>
+          <button onclick="toggleMostrar('impostores')">Mostrar impostores</button>
+        </div>
+        <div class="card noAdmitidos">
+          <h3>❌ No admitidos</h3>
+          <div class="valor">${noAdmitidos}</div>
+          <button onclick="toggleMostrar('no_admitidos')">Mostrar no admitidos</button>
+        </div>
+      </div>
+    `;
+    document.getElementById("resultados-secundarios").innerHTML = "";
+  }
+
+  function toggleMostrar(tipo) {
+    const contenedor = document.getElementById("resultados-secundarios");
+    if (mostrando === tipo) {
+      contenedor.innerHTML = "";
+      mostrando = "";
+      return;
     }
 
-    function mostrarImpostores(destino) {
-      const impostores = todos.filter(p => p.es_impostor);
-      let html = `<h2>🚨 Impostores</h2><ul>`;
-      impostores.forEach(p => {
-        html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
-      });
-      html += `</ul>`;
-      destino.innerHTML = html;
-    }
+    if (tipo === "impostores") mostrarImpostores(contenedor);
+    else if (tipo === "no_admitidos") mostrarNoIngresaron(contenedor);
+    else if (tipo === "admitidos") mostrarAdmitidos(contenedor);
 
-    function mostrarNoIngresaron(destino) {
-  const hoy = new Date().toISOString().split('T')[0];
+    mostrando = tipo;
+  }
 
-  const noAdmitidos = todos.filter(p =>
-    !p.es_impostor && (
-      !p.documentacion || !p.curso || !p.certificado || p.fecha !== hoy
-    )
-  );
-
-  const clasificados = {
-    "documentación": [],
-    "curso": [],
-    "certificado": [],
-    "cita en otro día": []
-  };
-
-  noAdmitidos.forEach(p => {
-    const nombre = p.nombre || `ID ${p.id}`;
-    if (!p.documentacion) clasificados["documentación"].push(nombre);
-    if (!p.curso) clasificados["curso"].push(nombre);
-    if (!p.certificado) clasificados["certificado"].push(nombre);
-    if (p.fecha !== hoy) clasificados["cita en otro día"].push(nombre);
-  });
-
-  let html = `<h2>❌ No pudieron ingresar</h2>`;
-  for (let motivo in clasificados) {
-    html += `<h3>Por ${motivo}:</h3><ul>`;
-    clasificados[motivo].forEach(n => html += `<li>${n}</li>`);
+  function mostrarImpostores(destino) {
+    const impostores = todos.filter(p => p.es_impostor);
+    let html = `<h2>🚨 Impostores</h2><ul>`;
+    impostores.forEach(p => {
+      html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
+    });
     html += `</ul>`;
+    destino.innerHTML = html;
   }
 
-  destino.innerHTML = html;
-}
+  function mostrarNoIngresaron(destino) {
+    const noAdmitidos = todos.filter(p =>
+      !p.es_impostor && (
+        !p.documentacion || !p.curso || !p.certificado
+      )
+    );
 
+    const clasificados = {
+      "documentación": [],
+      "curso": [],
+      "certificado": []
+    };
 
-    function mostrarAdmitidos(destino) {
-      let html = `<h2>✅ Admitidos</h2><ul>`;
-      admitidosGlobal.forEach(p => {
-        html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
-      });
+    noAdmitidos.forEach(p => {
+      const nombre = p.nombre || `ID ${p.id}`;
+      if (!p.documentacion) clasificados["documentación"].push(nombre);
+      if (!p.curso) clasificados["curso"].push(nombre);
+      if (!p.certificado) clasificados["certificado"].push(nombre);
+    });
+
+    let html = `<h2>❌ No pudieron ingresar</h2>`;
+    for (let motivo in clasificados) {
+      html += `<h3>Por ${motivo}:</h3><ul>`;
+      clasificados[motivo].forEach(n => html += `<li>${n}</li>`);
       html += `</ul>`;
-      destino.innerHTML = html;
     }
 
-    async function reiniciar() {
-  if (confirm("¿Estás seguro de reiniciar el juego?")) {
-    await fetch("/reiniciar");
-    location.reload();
+    destino.innerHTML = html;
   }
-}
 
-  </script>
+  function mostrarAdmitidos(destino) {
+    let html = `<h2>✅ Admitidos</h2><ul>`;
+    admitidosGlobal.forEach(p => {
+      html += `<li>${p.nombre || `ID ${p.id}`}</li>`;
+    });
+    html += `</ul>`;
+    destino.innerHTML = html;
+  }
+
+  async function reiniciar() {
+    if (confirm("¿Estás seguro de reiniciar el juego?")) {
+      await fetch("/reiniciar");
+      document.getElementById("resultados").innerHTML = "";
+      document.getElementById("resultados-secundarios").innerHTML = "";
+      document.getElementById("mensaje-reinicio").style.display = "block";
+      mostrando = "";
+    }
+  }
+</script>
 </body>
 </html>
