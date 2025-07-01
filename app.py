@@ -1,13 +1,19 @@
+from gevent import monkey
+monkey.patch_all()
+
+import requests
+
 from flask import Flask, render_template, redirect, url_for, request, make_response, jsonify
 from flask_socketio import SocketIO
 import random
-from gevent import monkey
 import uuid
 from datetime import datetime, timedelta
 import os
 import json
+import threading
+import time
 
-monkey.patch_all()
+
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
@@ -45,41 +51,67 @@ sub_roles_gerente = ["Gerente de Planta", "Gerente de Ventas", "Gerente de Compr
 plantas_gerente = ["Stellantis Chile", "Stellantis Uruguay", "Stellantis Brasil"]
 
 def generar_pase(id_numerico):
-    r = random.random()
-    if r < 0.05:
-        return {'id': str(id_numerico), 'rol': 'Visita', 'fecha': fecha_actual,
-                'hora': hora_actual.strftime("%H:%M"), 'empresa': '',
-                'documentacion': True, 'curso': True, 'certificado': True,
-                 'cita': True, 'es_impostor': False, 'nombre': ''}
-    elif r < 0.10:
-        return {'id': str(id_numerico), 'rol': 'Desconocido', 'fecha': "Sin cita",
-                'hora': "--:--", 'empresa': '',
-                'documentacion': False, 'curso': False, 'certificado': False,
-                'cita': False, 'es_impostor': True, 'nombre': ''}
+    global tipos_cola
+
+    if tipos_cola:
+        tipo = tipos_cola.popleft()
     else:
-        roles = ['Visita', 'Proveedor', 'Gerente', 'Inspector', 'Auditor']
-        rol = random.choice(roles)
-        hora_cita = (hora_actual + timedelta(minutes=random.randint(-60, 120))).strftime("%H:%M")
+        # Aquí definimos probabilidades para que el pase sea impostor, valido o random
+        p_impostor = 0.2  # 10% impostor
+        p_valido = 0.2  # 30% válido
+        p_random = 0.6  # 60% random
 
-        if rol == "Gerente":
-            rol = random.choice(sub_roles_gerente)
-            empresa = random.choice(plantas_gerente)
-        elif rol == "Proveedor":
-            empresa = random.choice(["Motores Córdoba SA", "Autopartes Cuenca", "Chasis del Sur"])
-        elif rol in ["Inspector", "Auditor"]:
-            empresa = random.choice(["Ministerio de Trabajo", "Sindicato Nacional", "ISO Control"])
-        elif rol == "Visita":
-            empresa = ""
+        r = random.random()
+        if r < p_impostor:
+            tipo = 'impostor'
+        elif r < p_impostor + p_valido:
+            tipo = 'valido'
         else:
-            empresa = random.choice(empresas)
+            tipo = 'random'
 
-        return {'id': str(id_numerico), 'rol': rol,
-                'fecha': fecha_actual, 'hora': hora_cita, 'empresa': empresa,
-                'documentacion': random.choice([True, False]),
-                'curso': random.choice([True, False]),
-                'certificado': random.choice([True, False]),
-                'cita': True if fecha_actual and hora_cita else False,
-                'es_impostor': False, 'nombre': ''}
+    if tipo == 'valido':
+        return {
+            'id': str(id_numerico), 'rol': 'Visita', 'fecha': fecha_actual,
+            'hora': hora_actual.strftime("%H:%M"), 'empresa': '',
+            'documentacion': True, 'curso': True, 'certificado': True,
+            'cita': True, 'es_impostor': False, 'nombre': ''
+        }
+
+    if tipo == 'impostor':
+        return {
+            'id': str(id_numerico), 'rol': 'Desconocido', 'fecha': "Sin cita",
+            'hora': "--:--", 'empresa': '',
+            'documentacion': False, 'curso': False, 'certificado': False,
+            'cita': False, 'es_impostor': True, 'nombre': ''
+        }
+
+    # Caso 'random'
+    roles = ['Visita', 'Proveedor', 'Gerente', 'Inspector', 'Auditor']
+    rol = random.choice(roles)
+    hora_cita = (hora_actual + timedelta(minutes=random.randint(-60, 120))).strftime("%H:%M")
+
+    if rol == "Gerente":
+        rol = random.choice(sub_roles_gerente)
+        empresa = random.choice(plantas_gerente)
+    elif rol == "Proveedor":
+        empresa = random.choice(["Motores Córdoba SA", "Autopartes Cuenca", "Chasis del Sur"])
+    elif rol in ["Inspector", "Auditor"]:
+        empresa = random.choice(["Ministerio de Trabajo", "Sindicato Nacional", "ISO Control"])
+    elif rol == "Visita":
+        empresa = ""
+    else:
+        empresa = random.choice(empresas)
+
+    return {
+        'id': str(id_numerico), 'rol': rol, 'fecha': fecha_actual, 'hora': hora_cita, 'empresa': empresa,
+        'documentacion': random.choice([True, False]),
+        'curso': random.choice([True, False]),
+        'certificado': random.choice([True, False]),
+        'cita': True if fecha_actual and hora_cita else False,
+        'es_impostor': False,
+        'nombre': ''
+    }
+
 
 @app.route("/scan")
 def scan():
@@ -184,6 +216,12 @@ def reiniciar():
             if os.path.isfile(ruta_archivo):
                 os.remove(ruta_archivo)
 
+    from collections import deque
+    global tipos_cola
+    TIPOS_CONTROLADOS = ['valido'] * 16 + ['impostor'] * 2 + ['random'] * 22
+    random.shuffle(TIPOS_CONTROLADOS)
+    tipos_cola = deque(TIPOS_CONTROLADOS)
+
     return "Juego reiniciado."
 
 
@@ -197,6 +235,19 @@ def ver_pase_publico(id):
 @socketio.on("connect")
 def handle_connect():
     print("Cliente conectado.")
+
+
+def mantener_viva():
+    while True:
+        try:
+            print("↪️ Haciendo ping para mantener viva la app")
+            requests.get("https://stellantis-pases.onrender.com/")
+        except Exception as e:
+            print("❌ Error en ping:", e)
+        time.sleep(600)  # cada 10 minutos (600 segundos)
+
+threading.Thread(target=mantener_viva, daemon=True).start()
+
 
 if __name__ == "__main__":
     cargar_desde_json()
